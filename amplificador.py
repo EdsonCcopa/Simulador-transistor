@@ -1,5 +1,6 @@
 import streamlit as st
 import math
+import matplotlib.pyplot as plt
 
 # ==========================================
 # CONFIGURACIÓN DE LA PÁGINA
@@ -146,3 +147,82 @@ else:
     col_cap1.info(f"**Condensador Entrada (Cin):**\n\n $\\ge$ {c_entrada * 1e6:.2f} µF")
     col_cap2.info(f"**Condensador Salida (Cout):**\n\n $\\ge$ {c_salida * 1e6:.2f} µF")
     col_cap3.info(f"**Condensador Emisor (Ce):**\n\n $\\ge$ {c_emisor * 1e6:.2f} µF")
+
+    # ==========================================
+    # 4. HERRAMIENTAS DE DISEÑO AVANZADO (NUEVO)
+    # ==========================================
+    st.markdown("---")
+    st.header("🛠️ 4️⃣ Opciones de Diseño Avanzado")
+    
+    # --- A. AJUSTE DE GANANCIA ---
+    st.subheader("A. Ajuste de Ganancia (Av)")
+    target_av = st.number_input("Digita en cuánto quieres amplificar (Av deseada):", value=150.0, step=10.0)
+    
+    rc_req = target_av * re_prima
+    st.info(f"Para lograr una ganancia de **{target_av}** sin alterar el Punto Q, necesitas que la resistencia equivalente en alterna ($r_c$) sea de **{rc_req/1000:.2f} kΩ**.")
+    
+    col_op1, col_op2 = st.columns(2)
+    with col_op1:
+        st.markdown("**Opción 1: Modificar solo $R_C$**")
+        if rl > rc_req:
+            rc_new = (rc_req * rl) / (rl - rc_req)
+            st.success(f"Cambia tu $R_C$ a: **{rc_new/1000:.2f} kΩ**")
+        else:
+            st.error(f"Imposible: $R_L$ es menor que el $r_c$ requerido.")
+            
+    with col_op2:
+        st.markdown("**Opción 2: Modificar solo $R_L$**")
+        if rc > rc_req:
+            rl_new = (rc_req * rc) / (rc - rc_req)
+            st.success(f"Cambia tu $R_L$ a: **{rl_new/1000:.2f} kΩ**")
+        else:
+            st.error(f"Imposible: $R_C$ es menor que el $r_c$ requerido.")
+
+    st.markdown("---")
+
+    # --- B. CENTRAR PUNTO Q Y GRÁFICA ---
+    st.subheader("B. Centrar Punto Q (Máxima Excursión)")
+    
+    # Cálculos para la recta de carga
+    vce_corte = vcc
+    ic_sat = vcc / (rc + re)
+    centro_ideal = vcc / 2
+    desviacion = vce - centro_ideal
+    
+    c_q1, c_q2, c_q3 = st.columns(3)
+    c_q1.metric("Máximo Vce (Corte)", f"{vce_corte:.2f} V")
+    c_q2.metric("Máximo Ic (Saturación)", f"{ic_sat*1e3:.2f} mA")
+    c_q3.metric("Tu Vce actual", f"{vce:.2f} V", delta=f"{desviacion:.2f} V del centro ideal", delta_color="inverse")
+    
+    st.markdown("#### 📈 Gráfica de la Recta de Carga")
+    
+    # Construcción de la gráfica
+    fig, ax = plt.subplots(figsize=(8, 4))
+    
+    # Recta de carga (línea gris)
+    ax.plot([0, vce_corte], [ic_sat*1e3, 0], color='gray', linewidth=2.5, label='Recta de Carga DC')
+    
+    # Punto Q actual (Rojo)
+    ax.plot(vce, ic*1e3, marker='o', color='red', markersize=10, label=f'Q Actual ({vce:.1f} V, {ic*1e3:.1f} mA)')
+    
+    # Punto Q ideal (Verde)
+    ax.plot(centro_ideal, (ic_sat*1e3)/2, marker='o', color='green', markersize=10, label=f'Q Ideal ({centro_ideal:.1f} V, {(ic_sat*1e3)/2:.1f} mA)')
+    
+    # Estilos del gráfico
+    ax.set_xlim(0, vcc * 1.1)
+    ax.set_ylim(0, (ic_sat*1e3) * 1.1)
+    ax.set_xlabel('Voltaje Colector-Emisor $V_{CE}$ (V)', fontweight='bold')
+    ax.set_ylabel('Corriente de Colector $I_C$ (mA)', fontweight='bold')
+    ax.grid(True, linestyle='--', alpha=0.6)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.legend()
+    
+    st.pyplot(fig)
+    
+    # Sugerencia de cambio de Rc
+    rc_ideal = (vcc / (2 * ic)) - re
+    if rc_ideal > 0:
+        st.success(f"💡 Para mover el punto rojo al punto verde (centro ideal), debes cambiar $R_C$ a: **{rc_ideal/1000:.2f} kΩ**")
+    else:
+        st.error("💡 Imposible centrar solo cambiando $R_C$ con esta configuración. La corriente es muy alta.")
